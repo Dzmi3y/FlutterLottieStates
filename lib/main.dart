@@ -3,14 +3,30 @@ import 'package:shake/shake.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:vibration/vibration.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
+  runApp(const MyApp());
+  Future.delayed(const Duration(seconds: 1), () {
+    FlutterNativeSplash.remove();
+  });
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: const MyHomePage(title: 'Shake Demo'));
+    return MaterialApp(
+      title: 'Shake Demo',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+      ),
+      home: const MyHomePage(title: 'Shake'),
+    );
   }
 }
 
@@ -96,17 +112,33 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final Color backgroundColor = _isShaking ? Colors.green.shade100 : Colors.blue.shade100;
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: Center(
-        child: Lottie.asset(
-          'assets/animations/RhvlShake.json',
-          controller: _controller,
-          onLoaded: (composition) {
-            _composition = composition;
-            _controller.duration = composition.duration;
-            _changeAnimation(AnimationStatus.idle);
-          },
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: Text(widget.title),
+        centerTitle: true,
+        elevation: 2,
+        backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+      ),
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        color: backgroundColor,
+        child: Center(
+          child: Lottie.asset(
+            'assets/animations/RhvlShake.json',
+            controller: _controller,
+            height: 400,
+            width: 400,
+            fit: BoxFit.cover,
+            onLoaded: (composition) {
+              _composition = composition;
+              _controller.duration = composition.duration;
+              _changeAnimation(AnimationStatus.idle);
+            },
+          ),
         ),
       ),
     );
