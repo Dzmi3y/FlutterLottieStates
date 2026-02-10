@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter_application_1/utils/lottie_state_machine.dart';
 import 'package:shake/shake.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -8,11 +9,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 void main() {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-
   runApp(const MyApp());
-  Future.delayed(const Duration(seconds: 1), () {
-    FlutterNativeSplash.remove();
-  });
+  FlutterNativeSplash.remove();
 }
 
 class MyApp extends StatelessWidget {
@@ -45,12 +43,49 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   Timer? _stopTimer;
   bool _isShaking = false;
   late ShakeDetector detector;
+  late final LottieAnimationStateMachine _stateMachine;
+
+  final _animationData = const LottieAnimationData(
+    src: 'assets/animations/RhvlShake.json',
+    states: {
+      AnimationStatus.idle: LottieAnimationState<AnimationStatus>(
+        id: AnimationStatus.idle,
+        startFrame: 150,
+        endFrame: 240,
+        isLoop: true,
+      ),
+      AnimationStatus.preShake: LottieAnimationState<AnimationStatus>(
+        id: AnimationStatus.preShake,
+        startFrame: 0,
+        endFrame: 30,
+        nextStateId: AnimationStatus.shake,
+        isLoop: false,
+      ),
+      AnimationStatus.shake: LottieAnimationState<AnimationStatus>(
+        id: AnimationStatus.shake,
+        startFrame: 60,
+        endFrame: 90,
+        isLoop: true,
+      ),
+      AnimationStatus.postShake: LottieAnimationState<AnimationStatus>(
+        id: AnimationStatus.postShake,
+        startFrame: 90,
+        endFrame: 150,
+        nextStateId: AnimationStatus.idle,
+        isLoop: false,
+      ),
+    },
+  );
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this);
-
+    _stateMachine = LottieAnimationStateMachine<AnimationStatus>(
+      controller: _controller,
+      currentStateId: AnimationStatus.idle,
+      animation: _animationData,
+    );
     detector = ShakeDetector.autoStart(
       onPhoneShake: (ShakeEvent event) {
         _handleShake();
@@ -76,30 +111,14 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   }
 
   void _changeAnimation(AnimationStatus status) {
-    if (_composition == null) return;
-
-    double frame(int f) => (f / _composition!.durationFrames).clamp(0.0, 1.0);
-
-    switch (status) {
-      case AnimationStatus.idle:
-        _controller.repeat(min: frame(150), max: frame(240));
-        break;
-      case AnimationStatus.preShake:
-        _controller.value = frame(0);
-        _controller.animateTo(frame(30)).then((_) {
-          if (_isShaking && mounted) _changeAnimation(AnimationStatus.shake);
-        });
-        break;
-      case AnimationStatus.shake:
-        _controller.repeat(min: frame(60), max: frame(90));
-        break;
-      case AnimationStatus.postShake:
-        _controller.value = frame(90);
-        _controller.animateTo(frame(150)).then((_) {
-          if (!_isShaking && mounted) _changeAnimation(AnimationStatus.idle);
-        });
-        break;
-    }
+    _stateMachine
+        .changeState(status)
+        .then(
+          (value) => {
+            if (_isShaking && mounted && value.nextStateId != null)
+              {_changeAnimation(value.nextStateId as AnimationStatus)},
+          },
+        );
   }
 
   @override
@@ -112,7 +131,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final Color backgroundColor = _isShaking ? Colors.green.shade100 : Colors.blue.shade100;
+    final Color backgroundColor = _isShaking
+        ? Colors.green.shade100
+        : Colors.blue.shade100;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -126,20 +147,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         color: backgroundColor,
-        child: Center(
-          child: Lottie.asset(
-            'assets/animations/RhvlShake.json',
-            controller: _controller,
-            height: 400,
-            width: 400,
-            fit: BoxFit.cover,
-            onLoaded: (composition) {
-              _composition = composition;
-              _controller.duration = composition.duration;
-              _changeAnimation(AnimationStatus.idle);
-            },
-          ),
-        ),
+        child: Center(child: _stateMachine.buildLottie()),
       ),
     );
   }
